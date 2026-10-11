@@ -44,6 +44,8 @@ type InjectorOutboundOptions struct {
 	ServerOptions
 	Payload          string `json:"payload,omitempty"`
 	Proxy            string `json:"proxy,omitempty"`
+	Method           string `json:"method,omitempty"`
+	TLS              bool   `json:"tls,omitempty"`
 	WebsocketMode    bool   `json:"websocket_mode,omitempty"`
 }
 

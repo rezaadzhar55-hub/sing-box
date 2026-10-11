@@ -1,6 +1,7 @@
 package injector
 
 import (
+	"crypto/tls"
 	"context"
 	"crypto/rand"
 	"encoding/binary"
@@ -32,6 +33,8 @@ type Outbound struct {
 	payload   string
 	wsMode    bool
 	proxy     string
+	method    string
+	useTls    bool
 }
 
 func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.InjectorOutboundOptions) (adapter.Outbound, error) {
@@ -47,6 +50,8 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		payload:   options.Payload,
 		wsMode:    options.WebsocketMode,
 		proxy:     options.Proxy,
+		method:    options.Method,
+		useTls:    options.TLS,
 	}, nil
 }
 
@@ -70,6 +75,22 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 		return nil, err
 	}
 	_ = conn.SetDeadline(time.Now().Add(20 * time.Second))
+	// mode TLS: bungkus koneksi dgn TLS sebelum payload/SSH
+	if h.useTls {
+		serverName := h.serverOps.Server
+		tlsConn := tls.Client(conn, &tls.Config{ServerName: serverName, InsecureSkipVerify: true})
+		if err := tlsConn.HandshakeContext(ctx); err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("injector: tls handshake gagal: %w", err)
+		}
+		conn = tlsConn
+		h.logger.InfoContext(ctx, "injector: tls handshake ok")
+	}
+	if h.method == "tls" || h.payload == "" {
+		// tanpa payload: langsung SSH banner
+		_ = conn.SetDeadline(time.Time{})
+		return conn, nil
+	}
 	norm := strings.ReplaceAll(strings.ReplaceAll(h.payload, "\r\n", "\n"), "\n", "\r\n")
 	if !strings.HasSuffix(norm, "\r\n\r\n") {
 		norm += "\r\n" // header harus diakhiri blank line
