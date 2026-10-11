@@ -31,6 +31,7 @@ type Outbound struct {
 	serverOps option.ServerOptions
 	payload   string
 	wsMode    bool
+	proxy     string
 }
 
 func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.InjectorOutboundOptions) (adapter.Outbound, error) {
@@ -45,6 +46,7 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		serverOps: options.ServerOptions,
 		payload:   options.Payload,
 		wsMode:    options.WebsocketMode,
+		proxy:     options.Proxy,
 	}, nil
 }
 
@@ -57,7 +59,13 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 	metadata.Destination = destination
 	h.logger.InfoContext(ctx, "injector connection to ", destination)
 
-	conn, err := h.dialer.DialContext(ctx, N.NetworkTCP, h.serverOps.Build())
+	dialOps := h.serverOps
+	if h.proxy != "" {
+		// remote proxy (gaya HI): dial ke proxy; payload Host tetap = bug host asli
+		sa := M.ParseSocksaddrHostPortStr(h.proxy, "80")
+		dialOps = option.ServerOptions{Server: sa.AddrString(), ServerPort: sa.Port}
+	}
+	conn, err := h.dialer.DialContext(ctx, N.NetworkTCP, dialOps.Build())
 	if err != nil {
 		return nil, err
 	}

@@ -43,6 +43,7 @@ type InjectorOutboundOptions struct {
 	DialerOptions
 	ServerOptions
 	Payload          string `json:"payload,omitempty"`
+	Proxy            string `json:"proxy,omitempty"`
 	WebsocketMode    bool   `json:"websocket_mode,omitempty"`
 }
 
