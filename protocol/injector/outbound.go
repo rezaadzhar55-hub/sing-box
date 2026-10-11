@@ -81,9 +81,14 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 				break
 			}
 		}
-		if !strings.Contains(string(buf), "101") {
+		if !strings.Contains(string(buf), "101") && !strings.Contains(string(buf), " 200 ") {
 			conn.Close()
 			return nil, fmt.Errorf("injector: ws handshake gagal: %s", firstLine(buf))
+		}
+		if strings.Contains(string(buf), " 200 ") && !strings.Contains(string(buf), "101") {
+			h.logger.InfoContext(ctx, "injector: 200 payload mode diterima")
+			_ = conn.SetDeadline(time.Time{})
+			return conn, nil
 		}
 		h.logger.InfoContext(ctx, "injector: ws 101 diterima")
 		_ = conn.SetDeadline(time.Time{})
