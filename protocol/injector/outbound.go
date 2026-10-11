@@ -62,7 +62,8 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 		return nil, err
 	}
 	_ = conn.SetDeadline(time.Now().Add(20 * time.Second))
-	if _, err = conn.Write([]byte(h.payload)); err != nil {
+	norm := strings.ReplaceAll(strings.ReplaceAll(h.payload, "\r\n", "\n"), "\n", "\r\n")
+	if _, err = conn.Write([]byte(norm)); err != nil {
 		conn.Close()
 		return nil, err
 	}
