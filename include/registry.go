@@ -23,6 +23,7 @@ import (
 	protocolDNS "github.com/sagernet/sing-box/protocol/dns"
 	"github.com/sagernet/sing-box/protocol/group"
 	"github.com/sagernet/sing-box/protocol/http"
+	"github.com/sagernet/sing-box/protocol/injector"
 	"github.com/sagernet/sing-box/protocol/mixed"
 	"github.com/sagernet/sing-box/protocol/naive"
 	"github.com/sagernet/sing-box/protocol/redirect"
@@ -83,6 +84,7 @@ func OutboundRegistry() *outbound.Registry {
 
 	socks.RegisterOutbound(registry)
 	http.RegisterOutbound(registry)
+	injector.RegisterOutbound(registry)
 	shadowsocks.RegisterOutbound(registry)
 	vmess.RegisterOutbound(registry)
 	trojan.RegisterOutbound(registry)

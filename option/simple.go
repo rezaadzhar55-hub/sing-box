@@ -38,3 +38,12 @@ type HTTPOutboundOptions struct {
 	Path    string               `json:"path,omitempty"`
 	Headers badoption.HTTPHeader `json:"headers,omitempty"`
 }
+
+type InjectorOutboundOptions struct {
+	DialerOptions
+	ServerOptions
+	Payload          string `json:"payload,omitempty"`
+	WaitForResponse  bool   `json:"wait_response,omitempty"`
+	ResponseSize     int    `json:"response_size,omitempty"`
+}
+
