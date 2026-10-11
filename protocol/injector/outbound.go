@@ -63,6 +63,12 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 	}
 	_ = conn.SetDeadline(time.Now().Add(20 * time.Second))
 	norm := strings.ReplaceAll(strings.ReplaceAll(h.payload, "\r\n", "\n"), "\n", "\r\n")
+	if !strings.HasSuffix(norm, "\r\n\r\n") {
+		norm += "\r\n" // header harus diakhiri blank line
+		if !strings.HasSuffix(norm, "\r\n\r\n") {
+			norm += "\r\n"
+		}
+	}
 	if _, err = conn.Write([]byte(norm)); err != nil {
 		conn.Close()
 		return nil, err
