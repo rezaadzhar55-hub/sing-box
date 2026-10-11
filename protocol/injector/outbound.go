@@ -132,7 +132,8 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 		}
 		h.logger.InfoContext(ctx, "injector: ws 101 diterima")
 		_ = conn.SetDeadline(time.Time{})
-		return &wsRawConn{Conn: conn}, nil
+		// gaya HTTP Injector: banner SSH MENTAH setelah 101 (bridge auto-detect RAW)
+		return conn, nil
 	}
 	_ = conn.SetDeadline(time.Time{})
 	return conn, nil
