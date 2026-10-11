@@ -3,6 +3,7 @@ package ssh
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"encoding/base64"
 	"math/rand"
 	"net"
@@ -121,6 +122,19 @@ func randomVersion() string {
 	return version
 }
 
+// fingerprint: tampilkan sidik jari hostkey gaya HI (md5 colon-separated)
+func (s *Outbound) fingerprint(key ssh.PublicKey) (string, bool) {
+	sum := md5.Sum(key.Marshal())
+	parts := make([]string, len(sum))
+	for i, b := range sum {
+		parts[i] = strconv.FormatUint(uint64(b), 16)
+		if len(parts[i]) == 1 {
+			parts[i] = "0" + parts[i]
+		}
+	}
+	return strings.Join(parts, ":"), true
+}
+
 func (s *Outbound) connect() (*ssh.Client, error) {
 	if s.client != nil {
 		return s.client, nil
@@ -143,6 +157,9 @@ func (s *Outbound) connect() (*ssh.Client, error) {
 		ClientVersion:     s.clientVersion,
 		HostKeyAlgorithms: s.hostKeyAlgorithms,
 		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			if fp, ok := s.fingerprint(key); ok {
+				s.logger.Info("Sidik jari Hostkey: ", fp)
+			}
 			if len(s.hostKey) == 0 {
 				return nil
 			}
@@ -160,6 +177,11 @@ func (s *Outbound) connect() (*ssh.Client, error) {
 		conn.Close()
 		return nil, E.Cause(err, "connect to ssh server")
 	}
+	// log HI-style: kex & cipher yang dipakai
+	if w, ok := clientConn.(interface{ SessionID() []byte }); ok {
+		_ = w
+	}
+	s.logger.Info("SSH handshake ok: ", s.user)
 
 	client := ssh.NewClient(clientConn, chans, reqs)
 

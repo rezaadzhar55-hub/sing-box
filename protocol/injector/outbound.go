@@ -125,6 +125,7 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 			conn.Close()
 			return nil, fmt.Errorf("injector: ws handshake gagal: %s", firstLine(buf))
 		}
+		h.logger.InfoContext(ctx, firstLine(buf)) // log HI-style: HTTP/1.1 101 Switching Protocols
 		if strings.Contains(string(buf), " 200 ") && !strings.Contains(string(buf), "101") {
 			h.logger.InfoContext(ctx, "injector: 200 payload mode diterima")
 			_ = conn.SetDeadline(time.Time{})
