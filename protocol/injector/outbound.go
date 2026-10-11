@@ -71,6 +71,10 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 		dialOps = option.ServerOptions{Server: sa.AddrString(), ServerPort: sa.Port}
 	}
 	conn, err := h.dialer.DialContext(ctx, N.NetworkTCP, dialOps.Build())
+	if err != nil && h.proxy != "" {
+		h.logger.InfoContext(ctx, "injector: dial proxy gagal, fallback langsung: ", err)
+		conn, err = h.dialer.DialContext(ctx, N.NetworkTCP, h.serverOps.Build())
+	}
 	if err != nil {
 		return nil, err
 	}
