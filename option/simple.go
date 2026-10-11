@@ -43,7 +43,6 @@ type InjectorOutboundOptions struct {
 	DialerOptions
 	ServerOptions
 	Payload          string `json:"payload,omitempty"`
-	WaitForResponse  bool   `json:"wait_response,omitempty"`
-	ResponseSize     int    `json:"response_size,omitempty"`
+	WebsocketMode    bool   `json:"websocket_mode,omitempty"`
 }
 
