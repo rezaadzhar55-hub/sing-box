@@ -115,6 +115,22 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 			norm += "\r\n"
 		}
 	}
+	// HI-parity: saat remote proxy dipakai, payload dikirim ke proxy dan server front
+	// umumnya menuntut Host = host-nya sendiri (kalau tidak -> 400 Bad Request).
+	// Ganti baris Host: dalam payload menjadi host remote proxy, tujuan asli
+	// disisipkan di X-Host agar server injector HI-style tetap tahu bug host.
+	if h.proxy != "" {
+		proxyHost := h.proxy
+		if i := strings.Index(proxyHost, ":"); i > 0 {
+			proxyHost = proxyHost[:i]
+		}
+		oldHost := "Host: " + h.serverOps.Server
+		if strings.Contains(norm, oldHost) {
+			norm = strings.Replace(norm, oldHost,
+				"Host: "+proxyHost+"\r\nX-Host: "+h.serverOps.Server, 1)
+			h.logger.InfoContext(ctx, "Host diganti ke remote proxy (HI-style): ", proxyHost)
+		}
+	}
 	if _, err = conn.Write([]byte(norm)); err != nil {
 		conn.Close()
 		return nil, err
