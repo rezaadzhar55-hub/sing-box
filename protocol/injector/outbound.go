@@ -96,7 +96,21 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 		_ = conn.SetDeadline(time.Time{})
 		return conn, nil
 	}
-	norm := strings.ReplaceAll(strings.ReplaceAll(h.payload, "\r\n", "\n"), "\n", "\r\n")
+	// substitusi placeholder gaya HTTP Injector
+	ph := strings.NewReplacer(
+		"[crlf]", "\n",
+		"[CRLF]", "\n",
+		"[host]", h.serverOps.Server,
+		"[Host]", h.serverOps.Server,
+		"[ua]", "Mozilla/5.0 (Linux; Android 9) AppleWebKit/537.36",
+		"[ua_gen]", "Mozilla/5.0 (Linux; Android 9) AppleWebKit/537.36",
+		"[ff]", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0",
+		"[cr]", "\r",
+		"[lf]", "\n",
+		"[tab]", "\t",
+	)
+	norm := ph.Replace(h.payload)
+	norm = strings.ReplaceAll(strings.ReplaceAll(norm, "\r\n", "\n"), "\n", "\r\n")
 	// Cloudflare hanya meneruskan WS-upgrade jika ada Sec-WebSocket-Key. Payload HI sering
 	// tanpa key (mis. "GET / ... Upgrade: websocket") -> CF membalas sendiri dan koneksi mati.
 	// Solusi: sisipkan key otomatis bila ada "Upgrade: websocket" tanpa key.
