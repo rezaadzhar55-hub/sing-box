@@ -213,6 +213,9 @@ func (s *Outbound) DialContext(ctx context.Context, network string, destination 
 	if err != nil {
 		return nil, err
 	}
+	// log gaya HI: tunjukkan koneksi keluar via SSH tunnel
+	s.logger.InfoContext(ctx, "outbound connection to ", destination,
+		" [via ssh://", s.user, "@", s.serverAddr, "]")
 	conn, err := client.Dial(network, destination.String())
 	if err != nil {
 		return nil, err
