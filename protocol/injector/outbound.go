@@ -97,6 +97,16 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 		return conn, nil
 	}
 	norm := strings.ReplaceAll(strings.ReplaceAll(h.payload, "\r\n", "\n"), "\n", "\r\n")
+	// Cloudflare hanya meneruskan WS-upgrade jika ada Sec-WebSocket-Key. Payload HI sering
+	// tanpa key (mis. "GET / ... Upgrade: websocket") -> CF membalas sendiri dan koneksi mati.
+	// Solusi: sisipkan key otomatis bila ada "Upgrade: websocket" tanpa key.
+	if strings.Contains(strings.ToLower(norm), "upgrade: websocket") &&
+		!strings.Contains(strings.ToLower(norm), "sec-websocket-key:") {
+		keyLine := "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+		norm = strings.Replace(norm, "Upgrade: websocket\r\n",
+			"Upgrade: websocket\r\n"+keyLine, 1)
+		h.logger.InfoContext(ctx, "Sec-WebSocket-Key ditambahkan otomatis (kompat Cloudflare)")
+	}
 	h.logger.InfoContext(ctx, "Format Payload: ", strings.ReplaceAll(norm, "\r\n", " | "))
 	h.logger.InfoContext(ctx, "Mengirim payload")
 	if !strings.HasSuffix(norm, "\r\n\r\n") {
