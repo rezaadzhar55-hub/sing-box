@@ -158,8 +158,10 @@ func (s *Outbound) connect() (*ssh.Client, error) {
 		HostKeyAlgorithms: s.hostKeyAlgorithms,
 		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
 			if fp, ok := s.fingerprint(key); ok {
-				s.logger.Info("Sidik jari Hostkey: ", fp)
+				s.logger.Info("Fingerprint: ", fp)
 			}
+			s.logger.Info("Key exchange: ", s.kexName())
+			s.logger.Info("Using algorithm: ", s.cipherName())
 			if len(s.hostKey) == 0 {
 				return nil
 			}
@@ -172,16 +174,18 @@ func (s *Outbound) connect() (*ssh.Client, error) {
 			return E.New("host key mismatch, server send ", key.Type(), " ", base64.StdEncoding.EncodeToString(serverKey))
 		},
 	}
+	s.logger.Info("SSH : Authenticating with password")
 	clientConn, chans, reqs, err := ssh.NewClientConn(conn, s.serverAddr.Addr.String(), config)
 	if err != nil {
 		conn.Close()
 		return nil, E.Cause(err, "connect to ssh server")
 	}
+	s.logger.Info("SSH banner: ", strings.TrimSpace(string(clientConn.ServerVersion())))
 	// log HI-style: kex & cipher yang dipakai
 	if w, ok := clientConn.(interface{ SessionID() []byte }); ok {
 		_ = w
 	}
-	s.logger.Info("SSH handshake ok: ", s.user)
+	s.logger.Info("Connected")
 
 	client := ssh.NewClient(clientConn, chans, reqs)
 
@@ -241,4 +245,13 @@ func (c *chanConnWrapper) SetReadDeadline(t time.Time) error {
 
 func (c *chanConnWrapper) SetWriteDeadline(t time.Time) error {
 	return os.ErrInvalid
+}
+
+// kex & cipher yang didukung library (ditampilkan saat handshake)
+func (s *Outbound) kexName() string {
+	return strings.Join(ssh.SupportedAlgorithms().KeyExchanges, ", ")
+}
+
+func (s *Outbound) cipherName() string {
+	return strings.Join(ssh.SupportedAlgorithms().Ciphers, ", ")
 }
