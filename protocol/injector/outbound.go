@@ -107,37 +107,66 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 		return nil, err
 	}
 	if h.wsMode {
-		// tunggu 101 header
-		buf := make([]byte, 0, 1024)
-		tmp := make([]byte, 512)
-		for !strings.Contains(string(buf), "\r\n\r\n") {
+		// baca respons header HTTP pertama (berhenti tepat di akhir header).
+		// sisa byte SETELAH header (mis. banner SSH dari server) DISIMPAN utk stream,
+		// jangan dibuang — ini kunci kompatibilitas semua server injector.
+		buf := make([]byte, 0, 4096)
+		tmp := make([]byte, 1024)
+		headerEnd := -1
+		for headerEnd < 0 {
 			n, err := conn.Read(tmp)
 			if err != nil {
 				conn.Close()
 				return nil, fmt.Errorf("injector: ws handshake read: %w", err)
 			}
 			buf = append(buf, tmp[:n]...)
-			if len(buf) > 8192 {
+			headerEnd = strings.Index(string(buf), "\r\n\r\n")
+			if len(buf) > 65536 {
 				break
 			}
 		}
-		if !strings.Contains(string(buf), "101") && !strings.Contains(string(buf), " 200 ") {
-			conn.Close()
-			return nil, fmt.Errorf("injector: ws handshake gagal: %s", firstLine(buf))
-		}
-		h.logger.InfoContext(ctx, firstLine(buf)) // log HI-style: HTTP/1.1 101 Switching Protocols
-		if strings.Contains(string(buf), " 200 ") && !strings.Contains(string(buf), "101") {
-			h.logger.InfoContext(ctx, "injector: 200 payload mode diterima")
-			_ = conn.SetDeadline(time.Time{})
+		first := firstLine(buf)
+		h.logger.InfoContext(ctx, first) // log HI-style: HTTP/1.1 101/200...
+		_ = conn.SetDeadline(time.Time{})
+		if headerEnd < 0 {
+			// header tidak lengkap: anggap raw, langsung serahkan
 			return conn, nil
 		}
-		h.logger.InfoContext(ctx, "injector: ws 101 diterima")
-		_ = conn.SetDeadline(time.Time{})
-		// gaya HTTP Injector: banner SSH MENTAH setelah 101 (bridge auto-detect RAW)
+		if strings.Contains(first, "101") || strings.Contains(first, " 200 ") {
+			// handshake ok. sisanya setelah header = data dari server (banner SSH),
+			// kembalikan lewat wrapper agar tidak hilang
+			rest := buf[headerEnd+4:]
+			if len(rest) > 0 {
+				return &prefixedConn{Conn: conn, prefix: rest}, nil
+			}
+			return conn, nil
+		}
+		// respons selain 101/200: tetap lanjut (server injector lain mungkin
+		// balas 302/400 tapi tunnel tetap raw) — gaya HI yang pemaaf
+		h.logger.InfoContext(ctx, "injector: respons non-101/200, lanjut raw: ", first)
+		rest := buf[headerEnd+4:]
+		if len(rest) > 0 {
+			return &prefixedConn{Conn: conn, prefix: rest}, nil
+		}
 		return conn, nil
 	}
 	_ = conn.SetDeadline(time.Time{})
 	return conn, nil
+}
+
+// prefixedConn: stream dgn byte tersisa dari respons HTTP sebelum data SSH
+type prefixedConn struct {
+	net.Conn
+	prefix []byte
+}
+
+func (c *prefixedConn) Read(b []byte) (int, error) {
+	if len(c.prefix) > 0 {
+		n := copy(b, c.prefix)
+		c.prefix = c.prefix[n:]
+		return n, nil
+	}
+	return c.Conn.Read(b)
 }
 
 func (h *Outbound) ListenPacket(ctx context.Context, destination M.Socksaddr) (net.PacketConn, error) {
