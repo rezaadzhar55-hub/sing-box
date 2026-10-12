@@ -67,6 +67,7 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 	dialOps := h.serverOps
 	if h.proxy != "" {
 		// remote proxy (gaya HI): dial ke proxy; payload Host tetap = bug host asli
+		h.logger.InfoContext(ctx, "Alamat Remote Proksi: ", h.proxy)
 		sa := M.ParseSocksaddrHostPortStr(h.proxy, "80")
 		dialOps = option.ServerOptions{Server: sa.AddrString(), ServerPort: sa.Port}
 	}
@@ -96,6 +97,8 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 		return conn, nil
 	}
 	norm := strings.ReplaceAll(strings.ReplaceAll(h.payload, "\r\n", "\n"), "\n", "\r\n")
+	h.logger.InfoContext(ctx, "Format Payload: ", strings.ReplaceAll(norm, "\r\n", " | "))
+	h.logger.InfoContext(ctx, "Mengirim payload")
 	if !strings.HasSuffix(norm, "\r\n\r\n") {
 		norm += "\r\n" // header harus diakhiri blank line
 		if !strings.HasSuffix(norm, "\r\n\r\n") {
