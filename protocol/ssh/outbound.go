@@ -249,9 +249,16 @@ func (c *chanConnWrapper) SetWriteDeadline(t time.Time) error {
 
 // kex & cipher yang didukung library (ditampilkan saat handshake)
 func (s *Outbound) kexName() string {
-	return strings.Join(ssh.SupportedAlgorithms().KeyExchanges, ", ")
+	// tampilkan satu algoritma utama saja (prioritas pertama library)
+	if a := ssh.SupportedAlgorithms().KeyExchanges; len(a) > 0 {
+		return a[0]
+	}
+	return ""
 }
 
 func (s *Outbound) cipherName() string {
-	return strings.Join(ssh.SupportedAlgorithms().Ciphers, ", ")
+	if a := ssh.SupportedAlgorithms().Ciphers; len(a) > 0 {
+		return a[0]
+	}
+	return ""
 }
