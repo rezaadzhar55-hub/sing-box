@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -175,6 +176,79 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 			// header tidak lengkap: anggap raw, langsung serahkan
 			return conn, nil
 		}
+		// 301/302: server frontline redirect (HI mengikuti redirect). Ulangi payload
+		// ke Location, maksimal 3x, di koneksi yang sama (keep-alive) atau koneksi baru.
+		if strings.Contains(first, " 301 ") || strings.Contains(first, " 302 ") {
+			for redir := 0; redir < 3; redir++ {
+				loc := extractHeader(buf, "Location:")
+				if loc == "" {
+					break
+				}
+				h.logger.InfoContext(ctx, "Redirect ", first, " -> ", loc, ", mengulang payload")
+				// ganti path pada baris request pertama payload
+				u, perr := url.Parse(strings.TrimSpace(loc))
+				if perr != nil {
+					break
+				}
+				path := u.Path
+				if path == "" {
+					path = "/"
+				}
+				if u.Host != "" {
+					// redirect ke host lain: ganti Host header juga
+					if i := strings.Index(norm, "\r\n"); i > 0 {
+						norm = norm[:i] + "\r\nHost: " + u.Host + norm[i:]
+					}
+				}
+				lines := strings.SplitN(norm, "\r\n", 2)
+				parts := strings.SplitN(lines[0], " ", 3)
+				if len(parts) >= 3 {
+					lines[0] = parts[0] + " " + path + " " + parts[2]
+				}
+				norm2 := strings.Join(lines, "\r\n")
+				if _, err := conn.Write([]byte(norm2)); err != nil {
+					conn.Close()
+					return nil, err
+				}
+				// baca respons berikutnya
+				buf = buf[:0]
+				headerEnd = -1
+				conn.SetDeadline(time.Now().Add(20 * time.Second))
+				for headerEnd < 0 {
+					n, err := conn.Read(tmp)
+					if err != nil {
+						conn.Close()
+						return nil, fmt.Errorf("injector: redirect read: %w", err)
+					}
+					buf = append(buf, tmp[:n]...)
+					headerEnd = strings.Index(string(buf), "\r\n\r\n")
+					if len(buf) > 65536 {
+						break
+					}
+				}
+				first = firstLine(buf)
+				h.logger.InfoContext(ctx, first)
+				if strings.Contains(first, "101") || strings.Contains(first, " 200 ") {
+					_ = conn.SetDeadline(time.Time{})
+					rest := buf[headerEnd+4:]
+					if len(rest) > 0 {
+						return &prefixedConn{Conn: conn, prefix: rest}, nil
+					}
+					return conn, nil
+				}
+				if !(strings.Contains(first, " 301 ") || strings.Contains(first, " 302 ")) {
+					break
+				}
+			}
+			// redirect gagal mencapai 101/200: lanjut raw seperti biasa
+			h.logger.InfoContext(ctx, "injector: redirect selesai, lanjut raw: ", first)
+			_ = conn.SetDeadline(time.Time{})
+			rest := buf[headerEnd+4:]
+			if len(rest) > 0 {
+				return &prefixedConn{Conn: conn, prefix: rest}, nil
+			}
+			return conn, nil
+		}
 		if strings.Contains(first, "101") || strings.Contains(first, " 200 ") {
 			// handshake ok. sisanya setelah header = data dari server (banner SSH),
 			// kembalikan lewat wrapper agar tidak hilang
@@ -325,4 +399,14 @@ func (c *wsRawConn) Close() error {
 	// kirim close frame best-effort
 	c.Conn.Write([]byte{0x88, 0x80, 0, 0, 0})
 	return c.Conn.Close()
+}
+
+// ambil nilai header dari blok respons HTTP
+func extractHeader(buf []byte, name string) string {
+	for _, ln := range strings.Split(string(buf), "\r\n") {
+		if strings.HasPrefix(strings.ToLower(ln), strings.ToLower(name)) {
+			return strings.TrimSpace(strings.TrimPrefix(ln, name))
+		}
+	}
+	return ""
 }
