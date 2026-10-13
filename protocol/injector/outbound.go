@@ -164,6 +164,11 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 		}
 		first := firstLine(buf)
 		h.logger.InfoContext(ctx, first) // log HI-style: HTTP/1.1 101/200...
+		if strings.Contains(first, "301") || strings.Contains(first, "302") {
+			if loc := extractHeader(buf, "Location:"); loc != "" {
+				h.logger.InfoContext(ctx, "Location: ", strings.TrimSpace(loc))
+			}
+		}
 		_ = conn.SetDeadline(time.Time{})
 		if headerEnd < 0 {
 			// header tidak lengkap: anggap raw, langsung serahkan
