@@ -43,6 +43,7 @@ type InjectorOutboundOptions struct {
 	DialerOptions
 	ServerOptions
 	Payload          string `json:"payload,omitempty"`
+	BugHost          string `json:"bug_host,omitempty"`
 	Proxy            string `json:"proxy,omitempty"`
 	Method           string `json:"method,omitempty"`
 	TLS              bool   `json:"tls,omitempty"`

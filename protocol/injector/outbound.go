@@ -34,6 +34,7 @@ type Outbound struct {
 	payload   string
 	wsMode    bool
 	proxy     string
+	bugHost   string
 	method    string
 	useTls    bool
 }
@@ -51,6 +52,7 @@ func NewOutbound(ctx context.Context, router adapter.Router, logger log.ContextL
 		payload:   options.Payload,
 		wsMode:    options.WebsocketMode,
 		proxy:     options.Proxy,
+		bugHost:   options.BugHost,
 		method:    options.Method,
 		useTls:    options.TLS,
 	}, nil
@@ -98,11 +100,15 @@ func (h *Outbound) DialContext(ctx context.Context, network string, destination 
 		return conn, nil
 	}
 	// substitusi placeholder gaya HTTP Injector
+	hostForPayload := h.serverOps.Server
+	if h.bugHost != "" {
+		hostForPayload = h.bugHost
+	}
 	ph := strings.NewReplacer(
 		"[crlf]", "\n",
 		"[CRLF]", "\n",
-		"[host]", h.serverOps.Server,
-		"[Host]", h.serverOps.Server,
+		"[host]", hostForPayload,
+		"[Host]", hostForPayload,
 		"[ua]", "Mozilla/5.0 (Linux; Android 9) AppleWebKit/537.36",
 		"[ua_gen]", "Mozilla/5.0 (Linux; Android 9) AppleWebKit/537.36",
 		"[ff]", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0",
